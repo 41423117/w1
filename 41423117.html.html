@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蛇行機器人模擬</title>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython_stdlib.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        .simulation-area {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .keyboard-hints {
+            background: #e8f4fc;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .description {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .description h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .description p {
+            margin-bottom: 10px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+        }
+        footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .control-buttons {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body onload="brython()">
+    <div class="container">
+        <header>
+            <h1>🐍 蛇行機器人模擬</h1>
+            <p>機器人從 (0,0) 開始，以蛇行方式走完 10x10 網格的所有格子</p>
+        </header>
+        
+        <main>
+            <div class="simulation-area">
+                <div id="brython_div1"></div>
+            </div>
+            
+            <div class="controls">
+                <h3>控制方式</h3>
+                <div class="control-buttons">
+                    <button id="move_button" class="btn btn-primary">Move Forward (J)</button>
+                    <button id="turn_button" class="btn btn-secondary">Turn Left (I)</button>
+                    <button id="reset_button" class="btn btn-danger">重置模擬</button>
+                </div>
+                <div class="keyboard-hints">
+                    <p><strong>鍵盤控制：</strong> J = 前進, I = 左轉</p>
+                </div>
+            </div>
+            
+            <div class="description">
+                <h3>關於此專案</h3>
+                <p>此模擬使用 Brython (Browser Python) 在網頁中實現機器人動畫。</p>
+                <p>機器人會自動從左下角 (0,0) 開始，以蛇行方式遍歷整個 10x10 的網格，並在走過的路徑上留下紅色軌跡。</p>
+            </div>
+        </main>
+        
+        <footer>
+            <p>© 2025 蛇行機器人模擬專案 | 使用 <a href="https://brython.info/" target="_blank">Brython</a> 開發</p>
+        </footer>
+    </div>
+
+    <script type="text/python">
+from browser import document, html, timer, bind
+
+CELL_SIZE = 40
+WALL_THICKNESS = 6
+IMG_PATH = "https://mde.tw/cp2025/reeborg/src/images/"
+
+class World:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.layers = self._create_layers()
+        self._init_html()
+        self._draw_grid()
+        self._draw_walls()
+    
+    def _create_layers(self):
+        return {
+            "grid": html.CANVAS(width=self.width * CELL_SIZE, height=self.height * CELL_SIZE),
+            "walls": html.CANVAS(width=self.width * CELL_SIZE, height=self.height * CELL_SIZE),
+            "objects": html.CANVAS(width=self.width * CELL_SIZE, height=self.height * CELL_SIZE),
+            "robots": html.CANVAS(width=self.width * CELL_SIZE, height=self.height * CELL_SIZE),
+        }
+
+    def _init_html(self):
+        container = html.DIV(style={
+            "position": "relative",
+            "width": f"{self.width * CELL_SIZE}px",
+            "height": f"{self.height * CELL_SIZE}px",
+            "border": "2px solid #333",
+            "border-radius": "5px"
+        })
+        for z, canvas in enumerate(self.layers.values()):
+            canvas.style = {
+                "position": "absolute",
+                "top": "0px",
+                "left": "0px",
+                "zIndex": str(z)
+            }
+            container <= canvas
+        
+        document["brython_div1"].clear()
+        document["brython_div1"] <= container
+    
+    def _draw_grid(self):
+        ctx = self.layers["grid"].getContext("2d")
+        ctx.strokeStyle = "#cccccc"
+        for i in range(self.width + 1):
+            ctx.beginPath()
+            ctx.moveTo(i * CELL_SIZE, 0)
+            ctx.lineTo(i * CELL_SIZE, self.height * CELL_SIZE)
+            ctx.stroke()
+        for j in range(self.height + 1):
+            ctx.beginPath()
+            ctx.moveTo(0, j * CELL_SIZE)
+            ctx.lineTo(self.width * CELL_SIZE, j * CELL_SIZE)
+            ctx.stroke()
+
+    def _draw_image(self, ctx, src, x, y, w, h, offset_x=0, offset_y=0):
+        img = html.IMG()
+        img.src = src
+        def onload(evt):
+            px = x * CELL_SIZE + offset_x
+            py = (self.height - 1 - y) * CELL_SIZE + offset_y
+            ctx.drawImage(img, px, py, w, h)
+        img.bind("load", onload)
+    
+    def _draw_walls(self):
+        ctx = self.layers["walls"].getContext("2d")
+        for x in range(self.width):
+            # North wall
+            self._draw_image(ctx, IMG_PATH + "north.png", x, self.height - 1,
+                             CELL_SIZE, WALL_THICKNESS, offset_y=0)
+            # South wall
+            self._draw_image(ctx, IMG_PATH + "north.png", x, 0,
+                             CELL_SIZE, WALL_THICKNESS, offset_y=CELL_SIZE - WALL_THICKNESS)
+        for y in range(self.height):
+            # West wall
+            self._draw_image(ctx, IMG_PATH + "east.png", 0, y,
+                             WALL_THICKNESS, CELL_SIZE, offset_x=0)
+            # East wall
+            self._draw_image(ctx, IMG_PATH + "east.png", self.width - 1, y,
+                             WALL_THICKNESS, CELL_SIZE, offset_x=CELL_SIZE - WALL_THICKNESS)
+
+class AnimatedRobot:
+    def __init__(self, world, x, y):
+        self.world = world
+        self.x = x - 1
+        self.y = y - 1
+        self.facing = "E"
+        self.facing_order = ["E", "N", "W", "S"]
+        self.robot_ctx = world.layers["robots"].getContext("2d")
+        self.trace_ctx = world.layers["objects"].getContext("2d")
+        self.queue = []
+        self.running = False
+        self._draw_robot()
+    
+    def _robot_image(self):
+        return {
+            "E": "blue_robot_e.png",
+            "N": "blue_robot_n.png",
+            "W": "blue_robot_w.png",
+            "S": "blue_robot_s.png"
+        }[self.facing]
+
+    def _draw_robot(self):
+        self.robot_ctx.clearRect(0, 0, self.world.width * CELL_SIZE, self.world.height * CELL_SIZE)
+        self.world._draw_image(self.robot_ctx, IMG_PATH + self._robot_image(),
+                               self.x, self.y, CELL_SIZE, CELL_SIZE)
+
+    def _draw_trace(self, from_x, from_y, to_x, to_y):
+        ctx = self.trace_ctx
+        ctx.strokeStyle = "#d33"
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        fx = from_x * CELL_SIZE + CELL_SIZE / 2
+        fy = (self.world.height - 1 - from_y) * CELL_SIZE + CELL_SIZE / 2
+        tx = to_x * CELL_SIZE + CELL_SIZE / 2
+        ty = (self.world.height - 1 - to_y) * CELL_SIZE + CELL_SIZE / 2
+        ctx.moveTo(fx, fy)
+        ctx.lineTo(tx, ty)
+        ctx.stroke()
+
+    def move(self, steps):
+        def action(next_done):
+            def step():
+                nonlocal steps
+                if steps == 0:
+                    next_done()
+                    return
+                from_x, from_y = self.x, self.y
+                dx, dy = 0, 0
+                if self.facing == "E":
+                    dx = 1
+                elif self.facing == "W":
+                    dx = -1
+                elif self.facing == "N":
+                    dy = 1
+                elif self.facing == "S":
+                    dy = -1
+                next_x = self.x + dx
+                next_y = self.y + dy
+    
+                # Boundary check
+                if 0 <= next_x < self.world.width and 0 <= next_y < self.world.height:
+                    self.x, self.y = next_x, next_y
+                    self._draw_trace(from_x, from_y, self.x, self.y)
+                    self._draw_robot()
+                    steps -= 1
+                    timer.set_timeout(step, 200)
+                else:
+                    print("🚨 已經撞牆，停止移動！")
+                    next_done()
+            step()
+        self.queue.append(action)
+        self._run_queue()
+
+    def turn_left(self):
+        def action(done):
+            idx = self.facing_order.index(self.facing)
+            self.facing = self.facing_order[(idx + 1) % 4]
+            self._draw_robot()
+            timer.set_timeout(done, 300)
+        self.queue.append(action)
+        self._run_queue()
+    
+    def turn_right(self):
+        # 右轉等於左轉三次
+        def action(done):
+            idx = self.facing_order.index(self.facing)
+            self.facing = self.facing_order[(idx + 3) % 4]  # +3 等於 -1 (左轉三次)
+            self._draw_robot()
+            timer.set_timeout(done, 300)
+        self.queue.append(action)
+        self._run_queue()
+
+    def _run_queue(self):
+        if self.running or not self.queue:
+            return
+        self.running = True
+        action = self.queue.pop(0)
+        action(lambda: self._done())
+
+    def _done(self):
+        self.running = False
+        self._run_queue()
+    
+    def reset(self):
+        self.queue = []
+        self.running = False
+        self.x = 0
+        self.y = 0
+        self.facing = "E"
+        self.robot_ctx.clearRect(0, 0, self.world.width * CELL_SIZE, self.world.height * CELL_SIZE)
+        self.trace_ctx.clearRect(0, 0, self.world.width * CELL_SIZE, self.world.height * CELL_SIZE)
+        self._draw_robot()
+
+# Create world and robot
+w = World(10, 10)
+r = AnimatedRobot(w, 1, 1)
+
+# Bind keyboard events
+@bind(document, "keydown")
+def keydown(evt):
+    if evt.key == "j" or evt.key == "J":
+        r.move(1)
+    elif evt.key == "i" or evt.key == "I":
+        r.turn_left()
+
+# Bind button events
+@bind(document["move_button"], "click")
+def move_click(evt):
+    r.move(1)
+
+@bind(document["turn_button"], "click")
+def turn_click(evt):
+    r.turn_left()
+
+@bind(document["reset_button"], "click")
+def reset_click(evt):
+    r.reset()
+    # 稍後重新開始蛇行
+    timer.set_timeout(snake_patrol, 500)
+
+# 蛇行走位函數 - 從(0,0)開始，以蛇行方式走完所有格子
+def snake_patrol():
+    # 初始位置 (0,0)，面向東
+    # 蛇行策略：先向右走到底，然後向上一步，再向左走到底，再向上一步，如此反覆
+    
+    for row in range(10):  # 總共有10行
+        if row % 2 == 0:  # 偶數行：從左到右
+            # 向右移動9步（從最左到最右）
+            r.move(9)
+            if row < 9:  # 如果不是最後一行，向上移動並轉向
+                r.turn_left()   # 轉向北
+                r.move(1)       # 向上一步
+                r.turn_left()   # 轉向西（準備下一行向左走）
+        else:  # 奇數行：從右到左
+            # 向左移動9步（從最右到最左）
+            r.move(9)
+            if row < 9:  # 如果不是最後一行，向上移動並轉向
+                r.turn_right()  # 轉向北
+                r.move(1)       # 向上一步
+                r.turn_right()  # 轉向東（準備下一行向右走")
+
+# 執行蛇行走位
+snake_patrol()
+    </script>
+</body>
+</html>
