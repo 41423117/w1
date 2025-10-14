@@ -1,3 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>蛇行機器人模擬</title>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brython@3/brython_stdlib.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        .simulation-area {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .controls h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        .keyboard-hints {
+            background: #e8f4fc;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .description {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .description h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .description p {
+            margin-bottom: 10px;
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #7f8c8d;
+        }
+        footer a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .control-buttons {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body onload="brython()">
+    <div class="container">
+        <header>
+            <h1>🐍 蛇行機器人模擬</h1>
+            <p>機器人從 (0,0) 開始，以蛇行方式走完 10x10 網格的所有格子</p>
+        </header>
+        
+        <main>
+            <div class="simulation-area">
+                <div id="brython_div1"></div>
+            </div>
+            
+            <div class="controls">
+                <h3>控制方式</h3>
+                <div class="control-buttons">
+                    <button id="move_button" class="btn btn-primary">Move Forward (J)</button>
+                    <button id="turn_button" class="btn btn-secondary">Turn Left (I)</button>
+                    <button id="reset_button" class="btn btn-danger">重置模擬</button>
+                </div>
+                <div class="keyboard-hints">
+                    <p><strong>鍵盤控制：</strong> J = 前進, I = 左轉</p>
+                </div>
+            </div>
+            
+            <div class="description">
+                <h3>關於此專案</h3>
+                <p>此模擬使用 Brython (Browser Python) 在網頁中實現機器人動畫。</p>
+                <p>機器人會自動從左下角 (0,0) 開始，以蛇行方式遍歷整個 10x10 的網格，並在走過的路徑上留下紅色軌跡。</p>
+            </div>
+        </main>
+        
+        <footer>
+            <p>© 2025 蛇行機器人模擬專案 | 使用 <a href="https://brython.info/" target="_blank">Brython</a> 開發</p>
+        </footer>
+    </div>
+
+    <script type="text/python">
 from browser import document, html, timer, bind
 
 CELL_SIZE = 40
@@ -25,7 +200,9 @@ class World:
         container = html.DIV(style={
             "position": "relative",
             "width": f"{self.width * CELL_SIZE}px",
-            "height": f"{self.height * CELL_SIZE}px"
+            "height": f"{self.height * CELL_SIZE}px",
+            "border": "2px solid #333",
+            "border-radius": "5px"
         })
         for z, canvas in enumerate(self.layers.values()):
             canvas.style = {
@@ -36,19 +213,8 @@ class World:
             }
             container <= canvas
         
-        # Add control buttons for mobile
-        button_container = html.DIV(style={
-            "margin-top": "10px",
-            "text-align": "center"
-        })
-        move_button = html.BUTTON("Move Forward (j)", id="move_button")
-        turn_button = html.BUTTON("Turn Left (i)", id="turn_button")
-        button_container <= move_button
-        button_container <= turn_button
-        
         document["brython_div1"].clear()
         document["brython_div1"] <= container
-        document["brython_div1"] <= button_container
     
     def _draw_grid(self):
         ctx = self.layers["grid"].getContext("2d")
@@ -89,11 +255,6 @@ class World:
             # East wall
             self._draw_image(ctx, IMG_PATH + "east.png", self.width - 1, y,
                              WALL_THICKNESS, CELL_SIZE, offset_x=CELL_SIZE - WALL_THICKNESS)
-
-    def robot(self, x, y):
-        ctx = self.layers["robots"].getContext("2d")
-        self._draw_image(ctx, IMG_PATH + "blue_robot_e.png", x - 1, y - 1,
-                         CELL_SIZE, CELL_SIZE)
 
 class AnimatedRobot:
     def __init__(self, world, x, y):
@@ -197,18 +358,27 @@ class AnimatedRobot:
     def _done(self):
         self.running = False
         self._run_queue()
+    
+    def reset(self):
+        self.queue = []
+        self.running = False
+        self.x = 0
+        self.y = 0
+        self.facing = "E"
+        self.robot_ctx.clearRect(0, 0, self.world.width * CELL_SIZE, self.world.height * CELL_SIZE)
+        self.trace_ctx.clearRect(0, 0, self.world.width * CELL_SIZE, self.world.height * CELL_SIZE)
+        self._draw_robot()
 
 # Create world and robot
 w = World(10, 10)
-w.robot(1, 1)
 r = AnimatedRobot(w, 1, 1)
 
 # Bind keyboard events
 @bind(document, "keydown")
 def keydown(evt):
-    if evt.key == "j":
+    if evt.key == "j" or evt.key == "J":
         r.move(1)
-    elif evt.key == "i":
+    elif evt.key == "i" or evt.key == "I":
         r.turn_left()
 
 # Bind button events
@@ -219,6 +389,12 @@ def move_click(evt):
 @bind(document["turn_button"], "click")
 def turn_click(evt):
     r.turn_left()
+
+@bind(document["reset_button"], "click")
+def reset_click(evt):
+    r.reset()
+    # 稍後重新開始蛇行
+    timer.set_timeout(snake_patrol, 500)
 
 # 蛇行走位函數 - 從(0,0)開始，以蛇行方式走完所有格子
 def snake_patrol():
@@ -239,12 +415,10 @@ def snake_patrol():
             if row < 9:  # 如果不是最後一行，向上移動並轉向
                 r.turn_right()  # 轉向北
                 r.move(1)       # 向上一步
-                r.turn_right()  # 轉向東（準備下一行向右走）
+                r.turn_right()  # 轉向東（準備下一行向右走")
 
 # 執行蛇行走位
 snake_patrol()
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-
-        r.turn_left()
+    </script>
+</body>
+</html>
