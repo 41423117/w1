@@ -176,6 +176,16 @@ class AnimatedRobot:
             timer.set_timeout(done, 300)
         self.queue.append(action)
         self._run_queue()
+    
+    def turn_right(self):
+        # 右轉等於左轉三次
+        def action(done):
+            idx = self.facing_order.index(self.facing)
+            self.facing = self.facing_order[(idx + 3) % 4]  # +3 等於 -1 (左轉三次)
+            self._draw_robot()
+            timer.set_timeout(done, 300)
+        self.queue.append(action)
+        self._run_queue()
 
     def _run_queue(self):
         if self.running or not self.queue:
@@ -210,64 +220,31 @@ def move_click(evt):
 def turn_click(evt):
     r.turn_left()
 
-# Initial patrol (optional, can be removed if only keyboard/button control is desired)
-def patrol(steps):
-    for _ in range(3):
-        r.move(steps)
-        r.turn_left()
+# 蛇行走位函數 - 從(0,0)開始，以蛇行方式走完所有格子
+def snake_patrol():
+    # 初始位置 (0,0)，面向東
+    # 蛇行策略：先向右走到底，然後向上一步，再向左走到底，再向上一步，如此反覆
+    
+    for row in range(10):  # 總共有10行
+        if row % 2 == 0:  # 偶數行：從左到右
+            # 向右移動9步（從最左到最右）
+            r.move(9)
+            if row < 9:  # 如果不是最後一行，向上移動並轉向
+                r.turn_left()   # 轉向北
+                r.move(1)       # 向上一步
+                r.turn_left()   # 轉向西（準備下一行向左走）
+        else:  # 奇數行：從右到左
+            # 向左移動9步（從最右到最左）
+            r.move(9)
+            if row < 9:  # 如果不是最後一行，向上移動並轉向
+                r.turn_right()  # 轉向北
+                r.move(1)       # 向上一步
+                r.turn_right()  # 轉向東（準備下一行向右走）
 
-patrol(9)
-""
+# 執行蛇行走位
+snake_patrol()
 def patrol(steps):
     for _ in range(2):
         r.move(steps)
-        r.turn_left()
 
-patrol(8)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(7)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(6)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(5)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(4)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(3)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
-        r.turn_left()
-
-patrol(2)
-""
-def patrol(steps):
-    for _ in range(2):
-        r.move(steps)
         r.turn_left()
