@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字像素畫生成器</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .display-container {
+            margin-top: 20px;
+            border: 2px solid #333;
+            background-color: #000;
+            overflow: auto;
+            display: inline-block;
+        }
+        .display {
+            display: grid;
+            gap: 0;
+            margin: 0 auto;
+        }
+        .pixel {
+            box-sizing: border-box;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            flex: 1;
+            min-width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>文字像素畫生成器</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="textInput">輸入文字:</label>
+                <input type="text" id="textInput" placeholder="輸入要顯示的文字">
+            </div>
+            
+            <div class="control-group">
+                <label for="displayWidth">顯示器寬度 (像素):</label>
+                <input type="number" id="displayWidth" value="400" min="100" max="2000">
+            </div>
+            
+            <div class="control-group">
+                <label for="pixelSize">文字像素大小:</label>
+                <input type="number" id="pixelSize" value="8" min="4" max="20">
+            </div>
+            
+            <div class="control-group">
+                <label for="pixelColor">像素顏色:</label>
+                <input type="color" id="pixelColor" value="#00ff00">
+            </div>
+        </div>
+        
+        <button id="generateBtn">生成像素畫</button>
+        
+        <div class="display-container" id="displayContainer">
+            <!-- 像素畫將在這裡生成 -->
+        </div>
+    </div>
+
+    <script>
+        // 像素字體定義 (5x7 像素)
+        const pixelFont = {
+            ' ': [0,0,0,0,0,0,0],
+            '!': [4,4,4,4,4,0,4],
+            '"': [10,10,10,0,0,0,0],
+            '#': [10,10,31,10,31,10,10],
+            '$': [4,15,20,14,5,30,4],
+            '%': [24,25,2,4,8,19,3],
+            '&': [12,18,20,8,21,18,13],
+            '\'': [4,4,4,0,0,0,0],
+            '(': [2,4,8,8,8,4,2],
+            ')': [8,4,2,2,2,4,8],
+            '*': [0,4,21,14,21,4,0],
+            '+': [0,4,4,31,4,4,0],
+            ',': [0,0,0,0,0,4,8],
+            '-': [0,0,0,31,0,0,0],
+            '.': [0,0,0,0,0,0,4],
+            '/': [0,1,2,4,8,16,0],
+            '0': [14,17,19,21,25,17,14],
+            '1': [4,12,4,4,4,4,14],
+            '2': [14,17,1,2,4,8,31],
+            '3': [31,2,4,2,1,17,14],
+            '4': [2,6,10,18,31,2,2],
+            '5': [31,16,30,1,1,17,14],
+            '6': [6,8,16,30,17,17,14],
+            '7': [31,1,2,4,8,8,8],
+            '8': [14,17,17,14,17,17,14],
+            '9': [14,17,17,15,1,2,12],
+            ':': [0,4,0,0,0,4,0],
+            ';': [0,4,0,0,0,4,8],
+            '<': [2,4,8,16,8,4,2],
+            '=': [0,0,31,0,31,0,0],
+            '>': [8,4,2,1,2,4,8],
+            '?': [14,17,1,2,4,0,4],
+            '@': [14,17,1,13,21,21,14],
+            'A': [14,17,17,31,17,17,17],
+            'B': [30,17,17,30,17,17,30],
+            'C': [14,17,16,16,16,17,14],
+            'D': [30,17,17,17,17,17,30],
+            'E': [31,16,16,30,16,16,31],
+            'F': [31,16,16,30,16,16,16],
+            'G': [14,17,16,23,17,17,15],
+            'H': [17,17,17,31,17,17,17],
+            'I': [14,4,4,4,4,4,14],
+            'J': [7,2,2,2,2,18,12],
+            'K': [17,18,20,24,20,18,17],
+            'L': [16,16,16,16,16,16,31],
+            'M': [17,27,21,17,17,17,17],
+            'N': [17,17,25,21,19,17,17],
+            'O': [14,17,17,17,17,17,14],
+            'P': [30,17,17,30,16,16,16],
+            'Q': [14,17,17,17,21,18,13],
+            'R': [30,17,17,30,20,18,17],
+            'S': [15,16,16,14,1,1,30],
+            'T': [31,4,4,4,4,4,4],
+            'U': [17,17,17,17,17,17,14],
+            'V': [17,17,17,17,17,10,4],
+            'W': [17,17,17,17,21,27,17],
+            'X': [17,17,10,4,10,17,17],
+            'Y': [17,17,10,4,4,4,4],
+            'Z': [31,1,2,4,8,16,31],
+            '[': [14,8,8,8,8,8,14],
+            '\\': [0,16,8,4,2,1,0],
+            ']': [14,2,2,2,2,2,14],
+            '^': [4,10,17,0,0,0,0],
+            '_': [0,0,0,0,0,0,31],
+            '`': [8,4,0,0,0,0,0],
+            'a': [0,0,14,1,15,17,15],
+            'b': [16,16,22,25,17,17,30],
+            'c': [0,0,14,16,16,17,14],
+            'd': [1,1,13,19,17,17,15],
+            'e': [0,0,14,17,31,16,14],
+            'f': [6,9,8,28,8,8,8],
+            'g': [0,15,17,17,15,1,14],
+            'h': [16,16,22,25,17,17,17],
+            'i': [4,0,12,4,4,4,14],
+            'j': [2,0,6,2,2,18,12],
+            'k': [16,16,18,20,24,20,18],
+            'l': [12,4,4,4,4,4,14],
+            'm': [0,0,26,21,21,21,21],
+            'n': [0,0,22,25,17,17,17],
+            'o': [0,0,14,17,17,17,14],
+            'p': [0,0,30,17,30,16,16],
+            'q': [0,0,15,17,15,1,1],
+            'r': [0,0,22,25,16,16,16],
+            's': [0,0,15,16,14,1,30],
+            't': [8,8,28,8,8,9,6],
+            'u': [0,0,17,17,17,19,13],
+            'v': [0,0,17,17,17,10,4],
+            'w': [0,0,17,17,21,21,10],
+            'x': [0,0,17,10,4,10,17],
+            'y': [0,0,17,17,15,1,14],
+            'z': [0,0,31,2,4,8,31],
+            '{': [6,8,8,16,8,8,6],
+            '|': [4,4,4,4,4,4,4],
+            '}': [12,2,2,1,2,2,12],
+            '~': [0,0,8,21,2,0,0]
+        };
+
+        document.getElementById('generateBtn').addEventListener('click', generatePixelArt);
+
+        function generatePixelArt() {
+            const textInput = document.getElementById('textInput').value;
+            const displayWidth = parseInt(document.getElementById('displayWidth').value);
+            const pixelSize = parseInt(document.getElementById('pixelSize').value);
+            const pixelColor = document.getElementById('pixelColor').value;
+            
+            const displayContainer = document.getElementById('displayContainer');
+            displayContainer.innerHTML = '';
+            
+            if (!textInput.trim()) {
+                alert('請輸入文字');
+                return;
+            }
+            
+            // 分割文字為單詞
+            const words = textInput.split(' ');
+            const lines = [];
+            let currentLine = [];
+            let currentLineWidth = 0;
+            
+            // 計算每個單詞的寬度（像素數）
+            const wordWidths = words.map(word => {
+                let width = 0;
+                for (let i = 0; i < word.length; i++) {
+                    const char = word[i];
+                    if (pixelFont[char]) {
+                        width += 5; // 每個字符寬度為5像素
+                        if (i < word.length - 1) width += 1; // 字符間距
+                    }
+                }
+                return width;
+            });
+            
+            // 自動換行邏輯
+            for (let i = 0; i < words.length; i++) {
+                const word = words[i];
+                const wordWidth = wordWidths[i];
+                
+                // 如果當前行是空的，直接添加單詞
+                if (currentLine.length === 0) {
+                    currentLine.push(word);
+                    currentLineWidth = wordWidth;
+                } 
+                // 如果當前行有內容，檢查是否能容納這個單詞
+                else if (currentLineWidth + 1 + wordWidth <= displayWidth / pixelSize) {
+                    currentLine.push(word);
+                    currentLineWidth += 1 + wordWidth; // 1是單詞間距
+                } 
+                // 如果當前行放不下，開始新的一行
+                else {
+                    lines.push(currentLine);
+                    currentLine = [word];
+                    currentLineWidth = wordWidth;
+                }
+            }
+            
+            // 添加最後一行
+            if (currentLine.length > 0) {
+                lines.push(currentLine);
+            }
+            
+            // 計算顯示器高度
+            const displayHeight = lines.length * 7 * pixelSize; // 7是字符高度
+            
+            // 設置顯示器容器尺寸
+            displayContainer.style.width = displayWidth + 'px';
+            displayContainer.style.height = displayHeight + 'px';
+            
+            // 創建像素畫布
+            const display = document.createElement('div');
+            display.className = 'display';
+            display.style.gridTemplateColumns = `repeat(${displayWidth / pixelSize}, ${pixelSize}px)`;
+            display.style.width = displayWidth + 'px';
+            display.style.height = displayHeight + 'px';
+            
+            // 初始化像素陣列
+            const pixels = Array(displayHeight / pixelSize).fill().map(() => 
+                Array(displayWidth / pixelSize).fill(0)
+            );
+            
+            // 繪製文字
+            let yOffset = 0;
+            
+            for (const line of lines) {
+                let xOffset = 0;
+                
+                for (const word of line) {
+                    for (let i = 0; i < word.length; i++) {
+                        const char = word[i];
+                        if (pixelFont[char]) {
+                            // 繪製字符
+                            const charData = pixelFont[char];
+                            for (let row = 0; row < 7; row++) {
+                                for (let col = 0; col < 5; col++) {
+                                    if (charData[row] & (1 << (4 - col))) {
+                                        const pixelY = yOffset + row;
+                                        const pixelX = xOffset + col;
+                                        if (pixelY < pixels.length && pixelX < pixels[0].length) {
+                                            pixels[pixelY][pixelX] = 1;
+                                        }
+                                    }
+                                }
+                            }
+                            xOffset += 6; // 5像素字符寬度 + 1像素字符間距
+                        }
+                    }
+                    xOffset += 1; // 單詞間距
+                }
+                
+                yOffset += 7; // 7像素字符高度
+            }
+            
+            // 渲染像素到顯示器
+            for (let row = 0; row < pixels.length; row++) {
+                for (let col = 0; col < pixels[row].length; col++) {
+                    const pixel = document.createElement('div');
+                    pixel.className = 'pixel';
+                    pixel.style.width = pixelSize + 'px';
+                    pixel.style.height = pixelSize + 'px';
+                    
+                    if (pixels[row][col]) {
+                        pixel.style.backgroundColor = pixelColor;
+                    } else {
+                        pixel.style.backgroundColor = '#000';
+                    }
+                    
+                    display.appendChild(pixel);
+                }
+            }
+            
+            displayContainer.appendChild(display);
+        }
+
+        // 初始生成範例
+        window.addEventListener('load', function() {
+            document.getElementById('textInput').value = 'Hello Pixel World!';
+            generatePixelArt();
+        });
+    </script>
+</body>
+</html>

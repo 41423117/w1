@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D溜冰球遊戲</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .game-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #333;
+            background-color: #87CEEB;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .controls p {
+            margin: 5px 0;
+        }
+        .game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 10;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .speed-control {
+            margin-top: 10px;
+        }
+        .instructions {
+            margin-top: 20px;
+            max-width: 600px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <h1>2D溜冰球遊戲</h1>
+    
+    <div class="controls">
+        <p>左側玩家: W(上) S(下)</p>
+        <p>右側玩家: 數字鍵 8(上) 5(下)</p>
+        <div class="speed-control">
+            <label for="ballSpeed">球的速度: </label>
+            <input type="range" id="ballSpeed" min="1" max="10" value="5">
+            <span id="speedValue">5</span>
+        </div>
+    </div>
+    
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="gameOver" class="game-over">
+            <h2 id="winnerText">遊戲結束</h2>
+            <button id="restartButton">重新開始 (空白鍵)</button>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h3>遊戲說明:</h3>
+        <ul>
+            <li>使用左側玩家的 W 和 S 鍵控制左側球拍</li>
+            <li>使用右側玩家的數字鍵 8 和 5 控制右側球拍</li>
+            <li>防止球進入您的球門</li>
+            <li>球碰到邊界或球拍會反彈</li>
+            <li>球進入左右邊界時遊戲結束</li>
+            <li>遊戲結束後點擊重新開始按鈕或按空白鍵開始新遊戲</li>
+        </ul>
+    </div>
+
+    <script>
+        // 獲取Canvas元素和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 遊戲變數
+        let gameRunning = true;
+        let leftScore = 0;
+        let rightScore = 0;
+        
+        // 球拍設定
+        const paddleWidth = 10;
+        const paddleHeight = 80;
+        const paddleSpeed = 8;
+        
+        // 左側球拍
+        const leftPaddle = {
+            x: 20,
+            y: canvas.height / 2 - paddleHeight / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            color: '#FF5722'
+        };
+        
+        // 右側球拍
+        const rightPaddle = {
+            x: canvas.width - 20 - paddleWidth,
+            y: canvas.height / 2 - paddleHeight / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            color: '#2196F3'
+        };
+        
+        // 球設定
+        const ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 10,
+            speed: 5,
+            velocityX: 0,
+            velocityY: 0,
+            color: '#FFC107'
+        };
+        
+        // 初始化球的方向
+        function initBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            
+            // 隨機選擇向左或向右
+            const direction = Math.random() > 0.5 ? 1 : -1;
+            ball.velocityX = direction * ball.speed;
+            
+            // 隨機垂直方向
+            ball.velocityY = (Math.random() - 0.5) * ball.speed;
+        }
+        
+        // 繪製球拍
+        function drawPaddle(paddle) {
+            ctx.fillStyle = paddle.color;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+        }
+        
+        // 繪製球
+        function drawBall() {
+            ctx.fillStyle = ball.color;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // 繪製場地
+        function drawField() {
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 繪製中線
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 15]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // 繪製中心圓
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, 50, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        // 更新遊戲狀態
+        function update() {
+            if (!gameRunning) return;
+            
+            // 移動球
+            ball.x += ball.velocityX;
+            ball.y += ball.velocityY;
+            
+            // 球與上下邊界碰撞檢測
+            if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+                ball.velocityY = -ball.velocityY;
+                
+                // 確保球不會卡在邊界
+                if (ball.y - ball.radius < 0) ball.y = ball.radius;
+                if (ball.y + ball.radius > canvas.height) ball.y = canvas.height - ball.radius;
+            }
+            
+            // 球與左側球拍碰撞檢測
+            if (ball.x - ball.radius < leftPaddle.x + leftPaddle.width &&
+                ball.x - ball.radius > leftPaddle.x &&
+                ball.y > leftPaddle.y &&
+                ball.y < leftPaddle.y + leftPaddle.height) {
+                
+                // 計算碰撞點相對於球拍中心的位置
+                let collidePoint = (ball.y - (leftPaddle.y + leftPaddle.height / 2)) / (leftPaddle.height / 2);
+                
+                // 計算反射角度
+                let angle = collidePoint * (Math.PI / 4); // 最大45度角
+                
+                // 計算新的速度
+                ball.velocityX = Math.cos(angle) * ball.speed;
+                ball.velocityY = Math.sin(angle) * ball.speed;
+                
+                // 確保球不會卡在球拍中
+                ball.x = leftPaddle.x + leftPaddle.width + ball.radius;
+            }
+            
+            // 球與右側球拍碰撞檢測
+            if (ball.x + ball.radius > rightPaddle.x &&
+                ball.x + ball.radius < rightPaddle.x + rightPaddle.width &&
+                ball.y > rightPaddle.y &&
+                ball.y < rightPaddle.y + rightPaddle.height) {
+                
+                // 計算碰撞點相對於球拍中心的位置
+                let collidePoint = (ball.y - (rightPaddle.y + rightPaddle.height / 2)) / (rightPaddle.height / 2);
+                
+                // 計算反射角度
+                let angle = collidePoint * (Math.PI / 4); // 最大45度角
+                
+                // 計算新的速度
+                ball.velocityX = -Math.cos(angle) * ball.speed;
+                ball.velocityY = Math.sin(angle) * ball.speed;
+                
+                // 確保球不會卡在球拍中
+                ball.x = rightPaddle.x - ball.radius;
+            }
+            
+            // 球進入左右邊界（得分）
+            if (ball.x - ball.radius < 0) {
+                // 右側得分
+                rightScore++;
+                endGame("右方贏!");
+            } else if (ball.x + ball.radius > canvas.width) {
+                // 左側得分
+                leftScore++;
+                endGame("左方贏!");
+            }
+        }
+        
+        // 結束遊戲
+        function endGame(winner) {
+            gameRunning = false;
+            document.getElementById('winnerText').textContent = winner;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        // 重新開始遊戲
+        function restartGame() {
+            gameRunning = true;
+            document.getElementById('gameOver').style.display = 'none';
+            initBall();
+        }
+        
+        // 遊戲主循環
+        function gameLoop() {
+            drawField();
+            drawPaddle(leftPaddle);
+            drawPaddle(rightPaddle);
+            drawBall();
+            update();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 鍵盤控制
+        const keys = {};
+        
+        document.addEventListener('keydown', function(e) {
+            keys[e.key] = true;
+            
+            // 空白鍵重新開始遊戲
+            if (e.key === ' ' && !gameRunning) {
+                restartGame();
+            }
+        });
+        
+        document.addEventListener('keyup', function(e) {
+            keys[e.key] = false;
+        });
+        
+        // 更新球拍位置
+        function updatePaddles() {
+            // 左側球拍控制 (W/S)
+            if (keys['w'] || keys['W']) {
+                leftPaddle.y = Math.max(0, leftPaddle.y - paddleSpeed);
+            }
+            if (keys['s'] || keys['S']) {
+                leftPaddle.y = Math.min(canvas.height - leftPaddle.height, leftPaddle.y + paddleSpeed);
+            }
+            
+            // 右側球拍控制 (8/5)
+            if (keys['8']) {
+                rightPaddle.y = Math.max(0, rightPaddle.y - paddleSpeed);
+            }
+            if (keys['5']) {
+                rightPaddle.y = Math.min(canvas.height - rightPaddle.height, rightPaddle.y + paddleSpeed);
+            }
+        }
+        
+        // 更新球的速度
+        function updateBallSpeed() {
+            const speedValue = parseInt(document.getElementById('ballSpeed').value);
+            document.getElementById('speedValue').textContent = speedValue;
+            
+            // 計算速度方向
+            const directionX = ball.velocityX > 0 ? 1 : -1;
+            const directionY = ball.velocityY > 0 ? 1 : -1;
+            
+            // 更新速度
+            ball.speed = speedValue;
+            ball.velocityX = directionX * ball.speed;
+            ball.velocityY = directionY * ball.speed;
+        }
+        
+        // 完整更新循環
+        function fullUpdate() {
+            updatePaddles();
+            update();
+        }
+        
+        // 初始化遊戲
+        function init() {
+            initBall();
+            document.getElementById('restartButton').addEventListener('click', restartGame);
+            document.getElementById('ballSpeed').addEventListener('input', updateBallSpeed);
+            
+            // 啟動遊戲循環
+            setInterval(fullUpdate, 1000 / 60); // 60 FPS
+            gameLoop();
+        }
+        
+        // 啟動遊戲
+        init();
+    </script>
+</body>
+</html>
