@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字像素画生成器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+        }
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        header {
+            background-color: #4a6fa5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        .description {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        .content {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+        .controls {
+            flex: 1;
+            min-width: 300px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            margin-right: 20px;
+        }
+        .display {
+            flex: 2;
+            min-width: 400px;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input, textarea, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #4a6fa5;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3a5a80;
+        }
+        .color-picker {
+            display: flex;
+            gap: 10px;
+        }
+        .color-picker div {
+            flex: 1;
+        }
+        .canvas-container {
+            width: 100%;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: auto;
+            margin-bottom: 20px;
+        }
+        #pixelCanvas {
+            display: block;
+            margin: 0 auto;
+        }
+        .download-btn {
+            width: auto;
+            padding: 10px 20px;
+            background-color: #5cb85c;
+        }
+        .download-btn:hover {
+            background-color: #4cae4c;
+        }
+        @media (max-width: 768px) {
+            .content {
+                flex-direction: column;
+            }
+            .controls {
+                margin-right: 0;
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>文字像素画生成器</h1>
+            <p class="description">输入文字，生成像素风格的艺术字，支持中英文和自定义设置</p>
+        </header>
+        
+        <div class="content">
+            <div class="controls">
+                <div class="control-group">
+                    <label for="textInput">输入文字</label>
+                    <textarea id="textInput" placeholder="请输入要生成像素画的文字..."></textarea>
+                </div>
+                
+                <div class="control-group">
+                    <label for="fontSize">字体大小 (像素)</label>
+                    <input type="number" id="fontSize" min="8" max="100" value="24">
+                </div>
+                
+                <div class="control-group">
+                    <label for="canvasWidth">显示宽度 (像素)</label>
+                    <input type="number" id="canvasWidth" min="100" max="2000" value="800">
+                </div>
+                
+                <div class="control-group">
+                    <label for="pixelSize">像素大小 (像素)</label>
+                    <input type="number" id="pixelSize" min="1" max="20" value="4">
+                </div>
+                
+                <div class="control-group color-picker">
+                    <div>
+                        <label for="bgColor">背景颜色</label>
+                        <input type="color" id="bgColor" value="#ffffff">
+                    </div>
+                    <div>
+                        <label for="textColor">文字颜色</label>
+                        <input type="color" id="textColor" value="#000000">
+                    </div>
+                </div>
+                
+                <button id="generateBtn">生成像素画</button>
+            </div>
+            
+            <div class="display">
+                <div class="canvas-container">
+                    <canvas id="pixelCanvas"></canvas>
+                </div>
+                <button id="downloadBtn" class="download-btn">下载图片</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取DOM元素
+            const textInput = document.getElementById('textInput');
+            const fontSizeInput = document.getElementById('fontSize');
+            const canvasWidthInput = document.getElementById('canvasWidth');
+            const pixelSizeInput = document.getElementById('pixelSize');
+            const bgColorInput = document.getElementById('bgColor');
+            const textColorInput = document.getElementById('textColor');
+            const generateBtn = document.getElementById('generateBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const canvas = document.getElementById('pixelCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 生成像素画
+            function generatePixelArt() {
+                const text = textInput.value.trim();
+                if (!text) {
+                    alert('请输入文字');
+                    return;
+                }
+                
+                const fontSize = parseInt(fontSizeInput.value);
+                const canvasWidth = parseInt(canvasWidthInput.value);
+                const pixelSize = parseInt(pixelSizeInput.value);
+                const bgColor = bgColorInput.value;
+                const textColor = textColorInput.value;
+                
+                // 创建离屏canvas用于文字测量
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // 设置字体
+                tempCtx.font = `${fontSize}px Arial, sans-serif`;
+                
+                // 计算文字行数和每行文字
+                const lines = [];
+                const words = text.split(/\s+/);
+                let currentLine = '';
+                
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    const testLine = currentLine ? `${currentLine} ${word}` : word;
+                    const metrics = tempCtx.measureText(testLine);
+                    
+                    // 如果当前行加上新单词超过宽度，则换行
+                    if (metrics.width > canvasWidth - 40) { // 留出边距
+                        if (currentLine) {
+                            lines.push(currentLine);
+                            currentLine = word;
+                        } else {
+                            // 单个单词就超过宽度，强制分割（对于中文每个字单独处理）
+                            if (/[\u4e00-\u9fa5]/.test(word)) {
+                                // 中文处理：每个字单独成行或按字分割
+                                for (let j = 0; j < word.length; j++) {
+                                    const char = word[j];
+                                    const charMetrics = tempCtx.measureText(char);
+                                    if (charMetrics.width > canvasWidth - 40) {
+                                        // 单个字符就超过宽度，需要缩小字体或处理
+                                        lines.push(char);
+                                    } else {
+                                        let charLine = '';
+                                        for (let k = j; k < word.length; k++) {
+                                            const nextChar = word[k];
+                                            const testCharLine = charLine + nextChar;
+                                            const testMetrics = tempCtx.measureText(testCharLine);
+                                            if (testMetrics.width <= canvasWidth - 40) {
+                                                charLine += nextChar;
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        lines.push(charLine);
+                                        j += charLine.length - 1;
+                                    }
+                                }
+                                currentLine = '';
+                            } else {
+                                // 英文长单词处理：按字符分割
+                                let splitWord = '';
+                                for (let j = 0; j < word.length; j++) {
+                                    const char = word[j];
+                                    const testSplit = splitWord + char;
+                                    const testMetrics = tempCtx.measureText(testSplit);
+                                    if (testMetrics.width <= canvasWidth - 40) {
+                                        splitWord += char;
+                                    } else {
+                                        if (splitWord) lines.push(splitWord);
+                                        splitWord = char;
+                                    }
+                                }
+                                if (splitWord) currentLine = splitWord;
+                            }
+                        }
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+                
+                // 计算画布高度
+                const lineHeight = fontSize * 1.2;
+                const canvasHeight = Math.max(100, lines.length * lineHeight + 40);
+                
+                // 设置画布尺寸
+                canvas.width = canvasWidth;
+                canvas.height = canvasHeight;
+                
+                // 绘制背景
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+                
+                // 绘制像素化文字
+                ctx.fillStyle = textColor;
+                
+                // 为每行文字创建像素数据
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const yPos = 20 + (i * lineHeight);
+                    
+                    // 创建临时canvas用于获取文字像素数据
+                    const lineCanvas = document.createElement('canvas');
+                    const lineCtx = lineCanvas.getContext('2d');
+                    lineCanvas.width = tempCtx.measureText(line).width;
+                    lineCanvas.height = fontSize * 1.5;
+                    
+                    // 绘制文字到临时canvas
+                    lineCtx.fillStyle = '#000000';
+                    lineCtx.font = `${fontSize}px Arial, sans-serif`;
+                    lineCtx.fillText(line, 0, fontSize);
+                    
+                    // 获取像素数据
+                    const imageData = lineCtx.getImageData(0, 0, lineCanvas.width, lineCanvas.height);
+                    const data = imageData.data;
+                    
+                    // 计算文字在画布中的水平居中位置
+                    const startX = Math.max(0, (canvasWidth - lineCanvas.width) / 2);
+                    
+                    // 绘制像素方块
+                    for (let y = 0; y < lineCanvas.height; y += pixelSize) {
+                        for (let x = 0; x < lineCanvas.width; x += pixelSize) {
+                            const pixelIndex = (y * lineCanvas.width + x) * 4;
+                            const alpha = data[pixelIndex + 3];
+                            
+                            // 如果像素不透明，则绘制方块
+                            if (alpha > 128) {
+                                ctx.fillRect(
+                                    Math.floor(startX + x), 
+                                    Math.floor(yPos + y - fontSize * 0.2), 
+                                    pixelSize, 
+                                    pixelSize
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 下载图片
+            function downloadImage() {
+                if (canvas.width === 0) {
+                    alert('请先生成像素画');
+                    return;
+                }
+                
+                const link = document.createElement('a');
+                link.download = 'pixel-art.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+            
+            // 绑定事件
+            generateBtn.addEventListener('click', generatePixelArt);
+            downloadBtn.addEventListener('click', downloadImage);
+            
+            // 初始生成示例
+            textInput.value = 'Hello 像素画!';
+            generatePixelArt();
+        });
+    </script>
+</body>
+</html>
