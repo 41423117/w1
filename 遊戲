@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞鸟射击游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+        }
+
+        body {
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #background-canvas, #game-canvas, #ui-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            padding-bottom: 10vh;
+            z-index: 10;
+        }
+
+        #start-button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 15px 40px;
+            font-size: 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        #start-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        #menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        #menu-screen.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .menu-item {
+            width: 300px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            margin: 10px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        #cursor {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 2px solid white;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            z-index: 30;
+            display: none;
+        }
+
+        #level-complete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 36px;
+            z-index: 30;
+            display: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="background-canvas"></canvas>
+        <canvas id="game-canvas"></canvas>
+        <canvas id="ui-canvas"></canvas>
+        
+        <div id="start-screen">
+            <button id="start-button">开始游戏</button>
+        </div>
+        
+        <div id="menu-screen">
+            <div class="menu-item" id="easy">简单</div>
+            <div class="menu-item" id="normal">一般</div>
+            <div class="menu-item" id="hard">困难</div>
+            <div class="menu-item" id="random">随机难度</div>
+            <div class="menu-item" id="exit">退出</div>
+            <div class="menu-item" id="resume" style="display: none;">继续</div>
+        </div>
+        
+        <div id="cursor"></div>
+        <div id="score-display">得分: 0</div>
+        <div id="level-complete">关卡完成!</div>
+    </div>
+
+    <script>
+        // 游戏状态
+        const GameState = {
+            START_SCREEN: 0,
+            MENU_SCREEN: 1,
+            PLAYING: 2,
+            PAUSED: 3,
+            LEVEL_COMPLETE: 4
+        };
+
+        // 难度设置 - 根据要求调整
+        const Difficulty = {
+            EASY: { birds: 15, speed: 2, spawnMin: 1000, spawnMax: 2500 },
+            NORMAL: { birds: 20, speed: 2.3, spawnMin: 800, spawnMax: 2000 },
+            HARD: { birds: 30, speed: 2.8, spawnMin: 600, spawnMax: 1800 }
+        };
+
+        // 游戏变量
+        let gameState = GameState.START_SCREEN;
+        let currentDifficulty = Difficulty.EASY;
+        let birds = [];
+        let killedBirds = 0;
+        let score = 0;
+        let gameWidth, gameHeight;
+        let backgroundImage, menuBackgroundImage;
+        let startBackgroundLoaded = false;
+        let menuBackgroundLoaded = false;
+
+        // 获取Canvas元素
+        const backgroundCanvas = document.getElementById('background-canvas');
+        const gameCanvas = document.getElementById('game-canvas');
+        const uiCanvas = document.getElementById('ui-canvas');
+        const backgroundCtx = backgroundCanvas.getContext('2d');
+        const gameCtx = gameCanvas.getContext('2d');
+        const uiCtx = uiCanvas.getContext('2d');
+
+        // 获取UI元素
+        const startScreen = document.getElementById('start-screen');
+        const menuScreen = document.getElementById('menu-screen');
+        const startButton = document.getElementById('start-button');
+        const cursor = document.getElementById('cursor');
+        const scoreDisplay = document.getElementById('score-display');
+        const levelComplete = document.getElementById('level-complete');
+        const easyBtn = document.getElementById('easy');
+        const normalBtn = document.getElementById('normal');
+        const hardBtn = document.getElementById('hard');
+        const randomBtn = document.getElementById('random');
+        const exitBtn = document.getElementById('exit');
+        const resumeBtn = document.getElementById('resume');
+
+        // 初始化游戏
+        function init() {
+            // 设置Canvas尺寸
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+            
+            // 加载背景图片
+            loadBackgroundImages();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 开始游戏循环
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 调整Canvas尺寸
+        function resizeCanvases() {
+            gameWidth = window.innerWidth;
+            gameHeight = window.innerHeight;
+            
+            backgroundCanvas.width = gameWidth;
+            backgroundCanvas.height = gameHeight;
+            
+            gameCanvas.width = gameWidth;
+            gameCanvas.height = gameHeight;
+            
+            uiCanvas.width = gameWidth;
+            uiCanvas.height = gameHeight;
+        }
+
+        // 加载背景图片
+        function loadBackgroundImages() {
+            backgroundImage = new Image();
+            backgroundImage.onload = function() {
+                startBackgroundLoaded = true;
+            };
+            // 使用猫图片作为开始背景
+            backgroundImage.src = 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2043&q=80';
+            
+            menuBackgroundImage = new Image();
+            menuBackgroundImage.onload = function() {
+                menuBackgroundLoaded = true;
+            };
+            // 使用宇宙图片作为菜单背景
+            menuBackgroundImage.src = 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2071&q=80';
+        }
+
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 开始按钮点击事件
+            startButton.addEventListener('click', startGame);
+            
+            // 键盘事件
+            document.addEventListener('keydown', handleKeyDown);
+            
+            // 鼠标移动事件
+            document.addEventListener('mousemove', handleMouseMove);
+            
+            // 鼠标点击事件
+            document.addEventListener('mousedown', handleMouseDown);
+            
+            // 菜单按钮事件
+            easyBtn.addEventListener('click', () => startLevel(Difficulty.EASY));
+            normalBtn.addEventListener('click', () => startLevel(Difficulty.NORMAL));
+            hardBtn.addEventListener('click', () => startLevel(Difficulty.HARD));
+            randomBtn.addEventListener('click', startRandomLevel);
+            exitBtn.addEventListener('click', exitToStart);
+            resumeBtn.addEventListener('click', resumeGame);
+        }
+
+        // 处理键盘事件
+        function handleKeyDown(e) {
+            switch(e.key) {
+                case ' ':
+                    if (gameState === GameState.START_SCREEN) {
+                        startGame();
+                    }
+                    break;
+                case 'Escape':
+                    if (gameState === GameState.PLAYING) {
+                        pauseGame();
+                    } else if (gameState === GameState.PAUSED) {
+                        resumeGame();
+                    }
+                    break;
+            }
+        }
+
+        // 处理鼠标移动
+        function handleMouseMove(e) {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        }
+
+        // 处理鼠标点击
+        function handleMouseDown(e) {
+            if (gameState === GameState.PLAYING) {
+                checkBirdHit(e.clientX, e.clientY);
+            }
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 淡出开始屏幕
+            startScreen.style.opacity = '0';
+            startScreen.style.pointerEvents = 'none';
+            
+            // 显示菜单屏幕
+            setTimeout(() => {
+                menuScreen.classList.add('active');
+                gameState = GameState.MENU_SCREEN;
+            }, 500);
+        }
+
+        // 开始关卡
+        function startLevel(difficulty) {
+            currentDifficulty = difficulty;
+            birds = [];
+            killedBirds = 0;
+            score = 0;
+            
+            // 隐藏菜单
+            menuScreen.classList.remove('active');
+            
+            // 显示游戏元素
+            cursor.style.display = 'block';
+            scoreDisplay.style.display = 'block';
+            scoreDisplay.textContent = '得分: 0';
+            
+            // 生成飞鸟
+            startBirdSpawning();
+            
+            // 更新游戏状态
+            gameState = GameState.PLAYING;
+        }
+
+        // 开始随机关卡
+        function startRandomLevel() {
+            const difficulties = [Difficulty.EASY, Difficulty.NORMAL, Difficulty.HARD];
+            const randomIndex = Math.floor(Math.random() * difficulties.length);
+            startLevel(difficulties[randomIndex]);
+        }
+
+        // 暂停游戏
+        function pauseGame() {
+            gameState = GameState.PAUSED;
+            menuScreen.classList.add('active');
+            resumeBtn.style.display = 'flex';
+            cursor.style.display = 'none';
+        }
+
+        // 继续游戏
+        function resumeGame() {
+            gameState = GameState.PLAYING;
+            menuScreen.classList.remove('active');
+            cursor.style.display = 'block';
+        }
+
+        // 退出到开始屏幕
+        function exitToStart() {
+            gameState = GameState.START_SCREEN;
+            menuScreen.classList.remove('active');
+            resumeBtn.style.display = 'none';
+            startScreen.style.opacity = '1';
+            startScreen.style.pointerEvents = 'all';
+            cursor.style.display = 'none';
+            scoreDisplay.style.display = 'none';
+            levelComplete.style.display = 'none';
+        }
+
+        // 开始生成飞鸟
+        function startBirdSpawning() {
+            let birdsSpawned = 0;
+            
+            function spawnBird() {
+                if (birdsSpawned < currentDifficulty.birds && gameState === GameState.PLAYING) {
+                    createBird();
+                    birdsSpawned++;
+                    
+                    // 随机生成下一个飞鸟
+                    const spawnTime = currentDifficulty.spawnMin + 
+                                     Math.random() * (currentDifficulty.spawnMax - currentDifficulty.spawnMin);
+                    setTimeout(spawnBird, spawnTime);
+                } else if (birdsSpawned === currentDifficulty.birds && gameState === GameState.PLAYING) {
+                    // 所有飞鸟都已生成，等待关卡完成
+                    checkLevelComplete();
+                }
+            }
+            
+            // 开始生成第一个飞鸟
+            spawnBird();
+        }
+
+        // 创建飞鸟
+        function createBird() {
+            // 随机决定飞鸟从左边还是右边生成
+            const fromLeft = Math.random() > 0.5;
+            const x = fromLeft ? -50 : gameWidth + 50;
+            const targetX = fromLeft ? gameWidth + 50 : -50;
+            
+            // 随机决定飞鸟的Y坐标 - 限制在画面上半部分
+            const y = 50 + Math.random() * (gameHeight / 2 - 100);
+            
+            // 创建飞鸟对象
+            const bird = {
+                x: x,
+                y: y,
+                targetX: targetX,
+                speed: currentDifficulty.speed,
+                radius: 15,
+                color: `hsl(${Math.random() * 360}, 70%, 60%)`,
+                alive: true
+            };
+            
+            birds.push(bird);
+        }
+
+        // 检查飞鸟是否被击中
+        function checkBirdHit(mouseX, mouseY) {
+            const hitRadius = 30; // 1.5倍于飞鸟大小
+            
+            for (let i = 0; i < birds.length; i++) {
+                const bird = birds[i];
+                if (bird.alive) {
+                    const distance = Math.sqrt(
+                        Math.pow(mouseX - bird.x, 2) + 
+                        Math.pow(mouseY - bird.y, 2)
+                    );
+                    
+                    if (distance < hitRadius) {
+                        // 飞鸟被击中
+                        bird.alive = false;
+                        killedBirds++;
+                        score += 10;
+                        scoreDisplay.textContent = `得分: ${score}`;
+                        
+                        // 检查关卡是否完成
+                        checkLevelComplete();
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 检查关卡是否完成
+        function checkLevelComplete() {
+            // 检查所有飞鸟是否都已消失
+            let allBirdsGone = true;
+            for (let i = 0; i < birds.length; i++) {
+                if (birds[i].alive) {
+                    allBirdsGone = false;
+                    break;
+                }
+            }
+            
+            if (allBirdsGone) {
+                // 关卡完成
+                gameState = GameState.LEVEL_COMPLETE;
+                levelComplete.style.display = 'block';
+                cursor.style.display = 'none';
+                
+                // 2秒后显示菜单
+                setTimeout(() => {
+                    levelComplete.style.display = 'none';
+                    menuScreen.classList.add('active');
+                    gameState = GameState.MENU_SCREEN;
+                    resumeBtn.style.display = 'none';
+                }, 2000);
+            }
+        }
+
+        // 更新游戏状态
+        function update() {
+            if (gameState === GameState.PLAYING) {
+                // 更新飞鸟位置
+                for (let i = 0; i < birds.length; i++) {
+                    const bird = birds[i];
+                    if (bird.alive) {
+                        // 移动飞鸟
+                        if (bird.x < bird.targetX) {
+                            bird.x += bird.speed;
+                        } else {
+                            bird.x -= bird.speed;
+                        }
+                        
+                        // 检查飞鸟是否飞出屏幕
+                        if ((bird.targetX > gameWidth && bird.x > gameWidth) || 
+                            (bird.targetX < 0 && bird.x < 0)) {
+                            bird.alive = false;
+                            killedBirds++;
+                            checkLevelComplete();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 渲染游戏
+        function render() {
+            // 清除画布
+            backgroundCtx.clearRect(0, 0, gameWidth, gameHeight);
+            gameCtx.clearRect(0, 0, gameWidth, gameHeight);
+            uiCtx.clearRect(0, 0, gameWidth, gameHeight);
+            
+            // 绘制背景
+            if (gameState === GameState.START_SCREEN && startBackgroundLoaded) {
+                backgroundCtx.drawImage(backgroundImage, 0, 0, gameWidth, gameHeight);
+            } else if ((gameState === GameState.MENU_SCREEN || gameState === GameState.PAUSED) && menuBackgroundLoaded) {
+                backgroundCtx.drawImage(menuBackgroundImage, 0, 0, gameWidth, gameHeight);
+            } else if (gameState === GameState.PLAYING || gameState === GameState.LEVEL_COMPLETE) {
+                // 游戏中的背景使用黑色
+                backgroundCtx.fillStyle = '#000';
+                backgroundCtx.fillRect(0, 0, gameWidth, gameHeight);
+            }
+            
+            // 绘制飞鸟
+            if (gameState === GameState.PLAYING || gameState === GameState.LEVEL_COMPLETE) {
+                for (let i = 0; i < birds.length; i++) {
+                    const bird = birds[i];
+                    if (bird.alive) {
+                        gameCtx.fillStyle = bird.color;
+                        gameCtx.beginPath();
+                        gameCtx.arc(bird.x, bird.y, bird.radius, 0, Math.PI * 2);
+                        gameCtx.fill();
+                        
+                        // 绘制翅膀
+                        gameCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                        gameCtx.beginPath();
+                        gameCtx.arc(
+                            bird.x - bird.radius/2, 
+                            bird.y - bird.radius/2, 
+                            bird.radius/2, 
+                            0, Math.PI * 2
+                        );
+                        gameCtx.fill();
+                    }
+                }
+            }
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 初始化游戏
+        window.onload = init;
+    </script>
+</body>
+</html>
+
+
+
+11月4日 
+    目前失敗中，正嘗試修改中
